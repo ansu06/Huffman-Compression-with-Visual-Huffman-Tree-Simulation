@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>PPM Huffman Visualizer</title>
+
+<style>
+body{
+    font-family: Arial;
+    text-align:center;
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+}
+canvas{
+    border:2px solid #ccc;
+    border-radius: 15px;
+    background:white;
+}
+button {
+  padding: 12px 25px;
+  margin: 10px;
+  font-size: 16px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  background: linear-gradient(to right, cyan, #10aed0);
+  color: black;
+  font-weight: bold;
+}
+
+.container{
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 5px;
+    margin-top: 20px;
+}
+.left{
+    flex: 2;
+}
+.right{
+    flex: 1;
+    height: 600px;
+    overflow-y: auto;
+    border: 3px solid white;
+    border-radius: 15px;
+    background: rgba(0,0,0,0.6);
+}
+body{
+    margin: 0;
+}
+.right{
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+h1{
+    font-family: "Lucida Calligraphy", "Lucida Bright", cursive;
+    font-size: 2.5rem;
+    letter-spacing: 1px;
+    color: lime;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Adaptive PPM Huffman Visualizer</h1>
+
+<select id="contextSelect"></select><br>
+
+<div class="container">
+    <div class="left">
+        <canvas id="canvas" width="1000" height="600"></canvas>
+    </div>
+
+    <div class="right">
+        <div id="bitstream" style="margin-top:15px;font-size:18px;color:white;">
+  	  <b>Bitstream :</b> <span id="bitstreamValue"></span>
+	  </div>
+    </div>
+</div>
+
+<button onclick="nextStep()">Next Step</button>
+
+<script id="treeData" type="application/json">{}</script>
+
+<script>
+const raw = JSON.parse(document.getElementById("treeData").textContent);
+
+const data = raw.contexts;
+const steps = raw.steps;
+
+let stepIndex = 0;
+let bitstream = "";
+
+const select = document.getElementById("contextSelect");
+
+for(let ctx in data){
+    let opt = document.createElement("option");
+    opt.value = ctx;
+    opt.text = (ctx == "255") ? "START" : String.fromCharCode(ctx);
+    select.appendChild(opt);
+}
+
+let currentContext = Object.keys(data)[0];
+
+function buildTree(map){
+    let root = {};
+
+    for(let ch in map){
+        let code = map[ch].code;
+        let freq = map[ch].freq;
+
+        let curr = root;
+
+        for(let bit of code){
+            if(!curr.children) curr.children = [null,null];
+
+            let i = bit === "0" ? 0 : 1;
+
+            if(!curr.children[i]) curr.children[i] = {};
+            curr = curr.children[i];
+        }
+
+        curr.char = String.fromCharCode(ch);
+        curr.freq = freq;
+        curr.code = code;
+    }
+
+    return root;
+}
+
+function draw(highlightCode=null){
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.textAlign = "center";
+
+    let map = data[currentContext];
+    if(!map) return;
+
+    let tree = buildTree(map);
+
+    function drawNode(node, x, y, offset, path=""){
+        if(!node) return;
+
+        let isLeaf = !node.children;
+
+        ctx.beginPath();
+        ctx.arc(x,y,30,0,Math.PI*2);
+
+        if(highlightCode && highlightCode.startsWith(path)){
+            ctx.fillStyle = "#ff6b6b";
+        } else {
+            ctx.fillStyle = isLeaf ? "#4dabf7" : "#adb5bd";
+        }
+
+        ctx.fill();
+        ctx.stroke();
+
+        if(isLeaf){
+          ctx.font = "15px Arial";
+          ctx.fillStyle = "white";
+          ctx.fillText(node.char + "(" + node.freq + ")", x, y);
+	  ctx.fillStyle = "darkgreen";
+          ctx.fillText(node.code, x, y + 18);
+        } 
+        else {
+	  ctx.font = "15px Arial";
+          ctx.fillStyle = "white";
+          ctx.fillText("#", x, y+4);
+        }
+
+        if(node.children){
+            let lx = x - offset;
+            let ly = y + 90;
+
+            ctx.beginPath();
+            ctx.moveTo(x,y+30);
+            ctx.lineTo(lx,ly-22);
+            ctx.stroke();
+
+            drawNode(node.children[0], lx, ly, offset/2, path+"0");
+
+            let rx = x + offset;
+            let ry = y + 90;
+
+            ctx.beginPath();
+            ctx.moveTo(x,y+30);
+            ctx.lineTo(rx,ry-22);
+            ctx.stroke();
+
+            drawNode(node.children[1], rx, ry, offset/2, path+"1");
+        }
+    }
+
+    drawNode(tree, 500, 60, 220);
+}
+
+function nextStep(){
+    if(stepIndex >= steps.length) return;
+
+    let s = steps[stepIndex];
+
+    currentContext = String(s.ctx);
+    select.value = currentContext;
+
+    bitstream += s.code;
+
+    document.getElementById("bitstream").innerHTML += `<div>${s.ctx} → ${String.fromCharCode(s.char)} : ${s.code}</div>`;
+    document.getElementById("bitstreamValue").innerText = bitstream;
+
+    draw(s.code);
+
+    stepIndex++;
+}
+
+select.onchange = () => {
+    currentContext = select.value;
+    draw();
+};
+
+draw();
+</script>
+
+</body>
+</html>
